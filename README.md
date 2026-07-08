@@ -89,6 +89,30 @@ src/
   styles/     base/menu/pack/card/reveal CSS (all 3D + holo is pure CSS vars)
 ```
 
+## Deployment
+
+Pushes to `main` are built and deployed to **GitHub Pages** automatically via
+`.github/workflows/deploy.yml`. One-time setup:
+
+1. **Enable Pages via Actions**: repo Settings → Pages → *Build and
+   deployment* → Source → **GitHub Actions**. No secrets or tokens needed —
+   the workflow uses the repo's built-in `pages: write` permission.
+2. **Custom domain (optional)**: Settings → Pages → *Custom domain* → enter
+   your domain. GitHub manages the `CNAME` file for you and provisions TLS
+   automatically once DNS is pointed at GitHub Pages (an `A`/`AAAA` record
+   set, or a `CNAME` record for a subdomain). If you'd rather keep the domain
+   on Cloudflare for its CDN/caching, you can proxy the same records through
+   Cloudflare (orange-cloud) in front of GitHub Pages — that's an independent
+   step and doesn't require anything else in this repo.
+3. **Note on `base` path**: `vite.config.ts` has no `base` set, so it
+   defaults to `/`, which is correct when the site is served from a domain
+   root (a custom domain, or the bare `<username>.github.io`). If you ever
+   serve it unmapped at `<username>.github.io/mythicpull/` instead, set
+   `base: '/mythicpull/'` in `vite.config.ts`.
+
+After that, every push to `main` redeploys automatically; no server to
+manage, and GitHub Pages is free for public repos.
+
 ## Disclaimer
 
 Unofficial fan project. Magic: The Gathering is © Wizards of the Coast.
