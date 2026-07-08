@@ -91,30 +91,27 @@ src/
 
 ## Deployment
 
-Pushes to `main` are built and deployed to **Cloudflare Pages** automatically
-via `.github/workflows/deploy.yml`. One-time setup:
+Pushes to `main` are built and deployed to **GitHub Pages** automatically via
+`.github/workflows/deploy.yml`. One-time setup:
 
-1. **Create the Pages project** (name must match `--project-name` in the
-   workflow, `mythicpull`):
-   ```bash
-   npx wrangler login
-   npx wrangler pages project create mythicpull --production-branch=main
-   ```
-   (Or create it in the Cloudflare dashboard: Workers & Pages → Create →
-   Pages → Direct upload.)
-2. **Create an API token**: Cloudflare dashboard → My Profile → API Tokens →
-   Create Token → "Edit Cloudflare Workers" template (or a custom token with
-   `Account.Cloudflare Pages: Edit` permission).
-3. **Add repo secrets** (Settings → Secrets and variables → Actions):
-   - `CLOUDFLARE_API_TOKEN` — the token from step 2
-   - `CLOUDFLARE_ACCOUNT_ID` — found on the right sidebar of any zone/domain
-     page in the Cloudflare dashboard
-4. **Custom domain**: once the project exists, attach your domain under the
-   Pages project's *Custom domains* tab — Cloudflare handles DNS and TLS for
-   you if the domain's nameservers already point to Cloudflare.
+1. **Enable Pages via Actions**: repo Settings → Pages → *Build and
+   deployment* → Source → **GitHub Actions**. No secrets or tokens needed —
+   the workflow uses the repo's built-in `pages: write` permission.
+2. **Custom domain (optional)**: Settings → Pages → *Custom domain* → enter
+   your domain. GitHub manages the `CNAME` file for you and provisions TLS
+   automatically once DNS is pointed at GitHub Pages (an `A`/`AAAA` record
+   set, or a `CNAME` record for a subdomain). If you'd rather keep the domain
+   on Cloudflare for its CDN/caching, you can proxy the same records through
+   Cloudflare (orange-cloud) in front of GitHub Pages — that's an independent
+   step and doesn't require anything else in this repo.
+3. **Note on `base` path**: `vite.config.ts` has no `base` set, so it
+   defaults to `/`, which is correct when the site is served from a domain
+   root (a custom domain, or the bare `<username>.github.io`). If you ever
+   serve it unmapped at `<username>.github.io/mythicpull/` instead, set
+   `base: '/mythicpull/'` in `vite.config.ts`.
 
 After that, every push to `main` redeploys automatically; no server to
-manage, and Cloudflare Pages' free tier covers this kind of static app.
+manage, and GitHub Pages is free for public repos.
 
 ## Disclaimer
 
