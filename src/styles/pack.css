@@ -1,0 +1,510 @@
+/* ---------- opening scene chrome ---------- */
+.opening-scene {
+  touch-action: none;
+}
+
+.open-head {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: max(16px, env(safe-area-inset-top)) 18px 10px;
+}
+
+.open-title {
+  font-family: Georgia, serif;
+  font-size: 19px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 240, 0.9);
+}
+
+.open-counter {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: rgba(232, 228, 240, 0.6);
+}
+
+.pack-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  perspective: 1300px;
+  touch-action: none;
+  cursor: grab;
+}
+
+.opening-scene.is-spinning .pack-stage {
+  cursor: grabbing;
+}
+
+.pack-float {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(calc(-50% + var(--shake, 0px)), -50%);
+  transform-style: preserve-3d;
+  animation: pack-bob 4.2s ease-in-out infinite;
+}
+
+@keyframes pack-bob {
+  0%,
+  100% {
+    margin-top: 0;
+  }
+  50% {
+    margin-top: -12px;
+  }
+}
+
+.pack-mount {
+  transform-style: preserve-3d;
+}
+
+/* ---------- the booster box ---------- */
+.pack3d {
+  position: relative;
+  width: min(300px, 62vw, 52vh);
+  aspect-ratio: 0.62;
+  transform-style: preserve-3d;
+  transition: opacity 0.4s ease;
+  /* NOTE: no filter here — filters flatten preserve-3d children */
+}
+
+/* soft ground shadow under the floating pack */
+.pack-shadow {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + min(150px, 31vw, 26vh) * 1.72);
+  width: min(300px, 62vw, 52vh);
+  height: 44px;
+  transform: translate(-50%, -50%) scaleY(0.32);
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.6), transparent 65%);
+  animation: shadow-bob 4.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shadow-bob {
+  0%,
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+  50% {
+    opacity: 0.7;
+    scale: 0.92 1;
+  }
+}
+
+.pack-away .pack-shadow {
+  transition: opacity 0.4s ease;
+  opacity: 0;
+  animation: none;
+}
+
+.pack-arrive {
+  opacity: 0;
+}
+
+.pack-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pack-face.front {
+  transform: translateZ(9px);
+}
+
+.pack-face.back {
+  transform: rotateY(180deg) translateZ(9px);
+}
+
+.pack-face.side {
+  width: 18px;
+  left: 0;
+  top: 1px;
+  bottom: 1px;
+  inset-inline-end: auto;
+  border-radius: 4px;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--accent) 24%, #120c22),
+    #0c081a 30%,
+    #0c081a 70%,
+    color-mix(in srgb, var(--accent) 24%, #120c22)
+  );
+  transform: translateX(-50%) rotateY(90deg);
+  backface-visibility: visible;
+}
+
+.pack-face.side-right {
+  left: auto;
+  right: 0;
+  transform: translateX(50%) rotateY(90deg);
+}
+
+/* ---------- wrapper design ---------- */
+.wrapper-design {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.1) 0%, transparent 30%),
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--accent2) 45%, #16102c),
+      #171030 34%,
+      color-mix(in srgb, var(--accent) 26%, #120d24) 68%,
+      #0d0920
+    );
+}
+
+.wrapper-flat-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.crimp {
+  position: relative;
+  height: 6.5%;
+  flex: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 2px, rgba(0, 0, 0, 0.28) 2px 5px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 40%, #241a3e), #16102c);
+}
+
+.crimp-top {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+  clip-path: polygon(
+    0 0, 100% 0, 100% 100%, 96% 88%, 92% 100%, 88% 88%, 84% 100%, 80% 88%, 76% 100%, 72% 88%,
+    68% 100%, 64% 88%, 60% 100%, 56% 88%, 52% 100%, 48% 88%, 44% 100%, 40% 88%, 36% 100%,
+    32% 88%, 28% 100%, 24% 88%, 20% 100%, 16% 88%, 12% 100%, 8% 88%, 4% 100%, 0 88%
+  );
+}
+
+.crimp-bottom {
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.wrap-body {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.wrap-art {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+  filter: saturate(1.15) contrast(1.05);
+}
+
+.wrap-art-fade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(13, 9, 32, 0.85), transparent 26%, transparent 55%, rgba(13, 9, 32, 0.92) 86%),
+    radial-gradient(120% 60% at 50% 40%, transparent 55%, rgba(13, 9, 32, 0.55));
+}
+
+.wrap-brand {
+  position: absolute;
+  top: 4.5%;
+  width: 100%;
+  text-align: center;
+  font-size: calc(10px * var(--pack-scale, 1));
+  letter-spacing: 0.42em;
+  color: rgba(255, 240, 210, 0.85);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+}
+
+.wrap-title {
+  position: absolute;
+  bottom: 14%;
+  width: 100%;
+  text-align: center;
+  font-family: Georgia, serif;
+  font-weight: 700;
+  font-size: calc(26px * var(--pack-scale, 1));
+  letter-spacing: 0.14em;
+  background: linear-gradient(175deg, #fff6d8 30%, var(--accent) 70%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
+  padding: 0 6px;
+}
+
+.wrap-sub {
+  position: absolute;
+  bottom: 9%;
+  width: 100%;
+  text-align: center;
+  font-size: calc(9px * var(--pack-scale, 1));
+  letter-spacing: 0.3em;
+  color: rgba(232, 228, 240, 0.7);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.wrap-barcode {
+  position: absolute;
+  bottom: 2.5%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 42%;
+  height: 5%;
+  background: repeating-linear-gradient(90deg, #ddd 0 2px, #111 2px 4px, #ddd 4px 5px, #111 5px 8px);
+  border: 3px solid #ddd;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+/* foil sheen that tracks the spin */
+.pack-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      105deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.07) 42%,
+      rgba(255, 255, 255, 0.5) 50%,
+      rgba(255, 255, 255, 0.07) 58%,
+      transparent 70%
+    ),
+    linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 80, 180, 0.1) 38%,
+      rgba(120, 220, 255, 0.12) 50%,
+      rgba(255, 220, 100, 0.1) 62%,
+      transparent 80%
+    );
+  background-size: 260% 100%, 320% 100%;
+  background-position-x: var(--sheen-x, 50%), calc(100% - var(--sheen-x, 50%));
+  mix-blend-mode: screen;
+  opacity: 0.9;
+}
+
+/* ---------- tear strip ---------- */
+.tear-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18%;
+  overflow: hidden;
+  z-index: 6;
+  transform-origin: 50% 100%;
+  transform: translateY(calc(var(--tear, 0) * -7px)) rotate(calc(var(--tear, 0) * var(--tear-dir, 1) * -2.5deg));
+  transition: transform 0.05s linear;
+}
+
+.tear-strip .wrapper-design {
+  height: 555.6%;
+}
+
+.pack3d.tearing .tear-strip {
+  filter: brightness(1.12);
+}
+
+/* the strip rips off */
+.pack3d.torn .tear-strip {
+  animation: strip-off 0.75s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
+}
+
+@keyframes strip-off {
+  20% {
+    transform: translate3d(8px, -22px, 30px) rotate(-6deg) rotateX(24deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(90px, -46vh, 120px) rotate(-28deg) rotateX(80deg);
+    opacity: 0;
+  }
+}
+
+/* jagged edge left behind on the front face */
+.pack3d.torn .pack-face.front > .wrapper-design {
+  clip-path: polygon(
+    0% 17.6%, 5% 16.6%, 11% 18.2%, 17% 16.9%, 24% 18.4%, 31% 16.8%, 38% 18.1%, 45% 17%,
+    52% 18.3%, 59% 16.9%, 66% 18.2%, 73% 17.1%, 80% 18.4%, 87% 16.9%, 94% 18.1%, 100% 17.3%,
+    100% 100%, 0% 100%
+  );
+}
+
+.pack3d.torn .pack-face.back > .wrapper-design {
+  clip-path: polygon(0% 17%, 100% 17.6%, 100% 100%, 0% 100%);
+}
+
+/* ---------- tear guide ---------- */
+.tear-guide {
+  position: absolute;
+  top: calc(18% - 3px);
+  left: 0;
+  right: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.tear-dashes {
+  position: absolute;
+  left: 3%;
+  right: 3%;
+  top: 0;
+  border-top: 2.5px dashed rgba(255, 244, 200, 0.75);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 80%, white));
+  opacity: calc(1 - var(--tear, 0));
+}
+
+.tear-chevron {
+  position: absolute;
+  top: -11px;
+  left: 4%;
+  font-size: 15px;
+  color: #ffedb0;
+  text-shadow: 0 0 8px rgba(255, 220, 120, 0.9);
+  animation: chevron-slide 2.2s ease-in-out infinite;
+  opacity: calc(1 - var(--tear, 0) * 3);
+}
+
+@keyframes chevron-slide {
+  0%,
+  15% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  85%,
+  100% {
+    transform: translateX(min(240px, 56vw));
+    opacity: 0;
+  }
+}
+
+.tear-frontier {
+  position: absolute;
+  top: -7px;
+  left: calc(3% + var(--tear, 0) * 94%);
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffe9a0 45%, transparent 70%);
+  box-shadow: 0 0 18px 6px rgba(255, 230, 150, 0.75);
+  opacity: 0;
+}
+
+.pack3d.tearing .tear-frontier {
+  opacity: 1;
+}
+
+.pack3d.tearing .tear-chevron {
+  animation-play-state: paused;
+}
+
+/* ---------- opening transition ---------- */
+.pack-away .pack-float {
+  animation: pack-drop 0.7s cubic-bezier(0.5, 0, 0.8, 0.4) forwards;
+}
+
+@keyframes pack-drop {
+  to {
+    margin-top: 42vh;
+    opacity: 0;
+  }
+}
+
+.open-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 46%, rgba(255, 250, 230, 0.95), rgba(255, 240, 190, 0.35) 32%, transparent 65%);
+  opacity: 0;
+  z-index: 9;
+}
+
+.open-flash.go {
+  animation: flash-pop 0.55s ease-out forwards;
+}
+
+@keyframes flash-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* ---------- hints ---------- */
+.hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 240, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.hint-spin {
+  bottom: calc(52px + env(safe-area-inset-bottom));
+}
+
+.hint-tear {
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  color: color-mix(in srgb, var(--accent) 75%, white);
+}
+
+/* pulse only while the pack phase is active — an always-on animation would
+   override the phase opacity and bleed into the reveal */
+.phase-pack .hint-tear {
+  animation: hint-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.phase-pack .hint {
+  opacity: 1;
+}
+
+.phase-pack.is-tearing .hint,
+.phase-pack.is-spinning .hint-tear {
+  opacity: 0.25;
+}

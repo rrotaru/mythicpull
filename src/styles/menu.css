@@ -1,0 +1,147 @@
+/* ---------- pack select ---------- */
+.menu-scene {
+  align-items: center;
+  justify-content: space-between;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+}
+
+.menu-head {
+  text-align: center;
+  margin-top: 2vh;
+}
+
+.logo {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(34px, 7vw, 52px);
+  letter-spacing: 0.22em;
+  font-weight: 700;
+  background: linear-gradient(170deg, #fff3cf 20%, #e0a93e 55%, #8a5a1a 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 14px rgba(224, 169, 62, 0.3));
+}
+
+.logo span {
+  background: linear-gradient(170deg, #e6dcff 20%, #9a6fe8 60%, #4f2f8a 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.menu-sub {
+  margin-top: 8px;
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(232, 228, 240, 0.45);
+}
+
+.menu-preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1100px;
+  width: 100%;
+  min-height: 0;
+}
+
+.menu-pack-mount {
+  transform-style: preserve-3d;
+}
+
+.menu-pack.pack3d {
+  width: min(210px, 44vw);
+  --pack-scale: 0.72;
+  cursor: default;
+}
+
+.menu-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+}
+
+.set-rail {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 640px;
+}
+
+.set-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 18px;
+  min-width: 128px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e8e4f0;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.15s ease,
+    box-shadow 0.25s ease;
+}
+
+.set-chip:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.set-chip.active {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 6px 24px color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, rgba(255, 255, 255, 0.05));
+}
+
+.set-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chip-code {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.chip-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.chip-soon {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: linear-gradient(160deg, #6a5acd, #3b2f6b);
+  color: #e6dcff;
+}
+
+.open-btn {
+  min-width: 220px;
+}
+
+.mute-btn {
+  position: absolute;
+  top: max(18px, env(safe-area-inset-top));
+  right: 18px;
+}

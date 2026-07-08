@@ -1,0 +1,133 @@
+import type { CardData, PackDefinition, Rarity } from './types';
+import { mockCardsFor, mockCardBack, mockKeyArt } from './mock';
+
+/**
+ * Thin Scryfall client.
+ *
+ * - Card fronts come from `image_uris` (large ≈ 672x936 JPG; Scryfall also
+ *   serves `png` at 745x1040 if we ever want alpha corners).
+ * - The classic Magic card back is served from Scryfall's backs CDN under the
+ *   default card_back_id.
+ * - Everything degrades to procedurally drawn mock assets when offline or
+ *   when `?mock=1` is in the URL, so the whole experience works without
+ *   network access.
+ */
+
+const API = 'https://api.scryfall.com';
+
+/** Scryfall's default card back (card_back_id 0aeebaf5-8c7d-4636-9e82-8c27447861f7). */
+export const CARD_BACK_URL =
+  'https://backs.scryfall.io/large/0/a/0aeebaf5-8c7d-4636-9e82-8c27447861f7.jpg';
+
+export const FORCE_MOCK = new URLSearchParams(location.search).has('mock');
+
+let cardBackResolved: string | null = null;
+
+/** Card back image, falling back to a drawn one if the CDN is unreachable. */
+export async function getCardBack(): Promise<string> {
+  if (cardBackResolved) return cardBackResolved;
+  if (!FORCE_MOCK && (await imageLoads(CARD_BACK_URL))) {
+    cardBackResolved = CARD_BACK_URL;
+  } else {
+    cardBackResolved = mockCardBack();
+  }
+  return cardBackResolved;
+}
+
+interface ScryfallCard {
+  id: string;
+  name: string;
+  set: string;
+  set_name: string;
+  rarity: Rarity;
+  type_line?: string;
+  image_uris?: Record<string, string>;
+  card_faces?: { image_uris?: Record<string, string> }[];
+}
+
+function imageUris(c: ScryfallCard): Record<string, string> | undefined {
+  return c.image_uris ?? c.card_faces?.[0]?.image_uris;
+}
+
+/** Resolve a pack's 15 card refs into CardData via POST /cards/collection. */
+export async function fetchPackCards(pack: PackDefinition): Promise<CardData[]> {
+  if (FORCE_MOCK) return mockCardsFor(pack);
+  try {
+    const res = await fetch(`${API}/cards/collection`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        identifiers: pack.cards.map((c) => (c.set ? { name: c.name, set: c.set } : { name: c.name })),
+      }),
+    });
+    if (!res.ok) throw new Error(`Scryfall ${res.status}`);
+    const json = (await res.json()) as { data: ScryfallCard[]; not_found?: unknown[] };
+    const byName = new Map(json.data.map((c) => [c.name.toLowerCase(), c] as const));
+    const cards: CardData[] = [];
+    for (const ref of pack.cards) {
+      const hit =
+        byName.get(ref.name.toLowerCase()) ??
+        json.data.find((c) => c.name.toLowerCase().startsWith(ref.name.toLowerCase()));
+      if (!hit) continue;
+      const uris = imageUris(hit);
+      if (!uris?.large) continue;
+      cards.push({
+        id: hit.id,
+        name: hit.name,
+        setCode: hit.set,
+        setName: hit.set_name,
+        rarity: hit.rarity,
+        typeLine: hit.type_line ?? '',
+        imageLarge: uris.large,
+        imageNormal: uris.normal ?? uris.large,
+        foil: ref.foil ?? hit.rarity === 'mythic',
+      });
+    }
+    if (cards.length === 0) throw new Error('no cards resolved');
+    return cards;
+  } catch (err) {
+    console.warn('[scryfall] falling back to mock cards:', err);
+    return mockCardsFor(pack);
+  }
+}
+
+/**
+ * Key art resolver. Pack definitions use "scryfall-art:<Name>:<set>" so no
+ * image URLs need hardcoding; falls back to procedural art offline.
+ */
+export async function resolveKeyArt(pack: PackDefinition): Promise<string> {
+  const spec = pack.keyArt;
+  if (spec && !spec.startsWith('scryfall-art:')) return spec;
+  if (spec && !FORCE_MOCK) {
+    const [, name, set] = spec.split(':');
+    try {
+      const url = new URL(`${API}/cards/named`);
+      url.searchParams.set('exact', name);
+      if (set) url.searchParams.set('set', set);
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (res.ok) {
+        const card = (await res.json()) as ScryfallCard;
+        const art = imageUris(card)?.art_crop;
+        if (art) return art;
+      }
+    } catch {
+      /* fall through to mock */
+    }
+  }
+  return mockKeyArt(pack);
+}
+
+function imageLoads(src: string, timeoutMs = 6000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const t = setTimeout(() => resolve(false), timeoutMs);
+    img.onload = () => (clearTimeout(t), resolve(true));
+    img.onerror = () => (clearTimeout(t), resolve(false));
+    img.src = src;
+  });
+}
+
+/** Warm the browser cache so reveals don't pop in. */
+export function preloadImages(urls: string[]): Promise<void> {
+  return Promise.all(urls.map((u) => imageLoads(u, 12000))).then(() => undefined);
+}

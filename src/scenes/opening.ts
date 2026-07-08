@@ -1,0 +1,589 @@
+import type { Scene } from '../main';
+import type { CardData, PackDefinition } from '../data/types';
+import { fetchPackCards, getCardBack, resolveKeyArt, preloadImages } from '../data/scryfall';
+import { buildPack } from '../components/wrapper';
+import { buildCard, type CardEl } from '../components/card';
+import { Spring, onTick } from '../fx/spring';
+import { burst, rainbowBurst, tearSparks } from '../fx/particles';
+import { tearCrackle, ripOpen, cardWhoosh, flipSnap, rareShimmer, uiBlip } from '../fx/sound';
+
+/**
+ * The pack-cracking ritual, in four phases:
+ *
+ *  pack    — the booster floats center stage; drag to spin it 360°, then
+ *            swipe across the perforation line at the top to tear it open
+ *  burst   — the strip rips off, the wrapper falls away, the cards rise
+ *  reveal  — tap through the stack one card at a time; drag anywhere to
+ *            wobble the current card (holo foils shimmer with the tilt)
+ *  summary — the full pull fans out; tap any card to inspect it in 3D
+ */
+
+type Phase = 'pack' | 'burst' | 'reveal' | 'summary';
+
+const TEAR_ZONE = 0.2; // top fraction of the pack that accepts tear gestures
+const TEAR_COMPLETE = 0.88;
+const TAP_MAX_DIST = 9;
+const TAP_MAX_MS = 350;
+
+export function openingScene(opts: {
+  pack: PackDefinition;
+  onExit: () => void;
+  onAgain: () => void;
+}): Scene {
+  const { pack } = opts;
+  const el = document.createElement('section');
+  el.className = 'scene opening-scene phase-pack';
+  el.style.setProperty('--accent', pack.accent);
+  el.style.setProperty('--accent2', pack.accentSecondary);
+  el.innerHTML = `
+    <header class="open-head">
+      <button class="btn-icon back-btn" title="Back to packs">←</button>
+      <div class="open-title">${pack.name}</div>
+      <div class="open-counter"></div>
+    </header>
+    <div class="pack-stage">
+      <div class="pack-shadow"></div>
+      <div class="pack-float"><div class="pack-mount"></div></div>
+      <div class="stack-zone"></div>
+      <div class="open-flash"></div>
+      <div class="rare-rays"></div>
+    </div>
+    <div class="hint hint-spin">Drag to spin the pack</div>
+    <div class="hint hint-tear">Pull across the top to tear it open</div>
+    <div class="reveal-hud">
+      <button class="btn btn-ghost skip-btn">Reveal all</button>
+    </div>
+    <div class="summary-panel">
+      <h2 class="summary-title">Your pull</h2>
+      <div class="summary-rarities"></div>
+      <div class="summary-grid"></div>
+      <div class="summary-actions">
+        <button class="btn btn-primary again-btn">Open another</button>
+        <button class="btn btn-ghost exit-btn">Change pack</button>
+      </div>
+    </div>
+    <div class="inspect-overlay"><div class="inspect-mount"></div></div>
+  `;
+
+  const packStage = el.querySelector<HTMLDivElement>('.pack-stage')!;
+  const packFloat = el.querySelector<HTMLDivElement>('.pack-float')!;
+  const packMount = el.querySelector<HTMLDivElement>('.pack-mount')!;
+  const stackZone = el.querySelector<HTMLDivElement>('.stack-zone')!;
+  const counter = el.querySelector<HTMLDivElement>('.open-counter')!;
+  const flash = el.querySelector<HTMLDivElement>('.open-flash')!;
+  const rays = el.querySelector<HTMLDivElement>('.rare-rays')!;
+
+  let phase: Phase = 'pack';
+  let disposed = false;
+  const cleanups: (() => void)[] = [];
+
+  function setPhase(p: Phase) {
+    el.classList.remove(`phase-${phase}`);
+    phase = p;
+    el.classList.add(`phase-${phase}`);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Data: kick everything off immediately; the tear waits on nothing    */
+  /* visible — cards resolve while the user plays with the pack.         */
+  /* ------------------------------------------------------------------ */
+
+  let cards: CardData[] = [];
+  let cardBack = '';
+  const dataReady = (async () => {
+    const [fetched, back] = await Promise.all([fetchPackCards(pack), getCardBack()]);
+    cards = fetched;
+    cardBack = back;
+    void preloadImages([back, ...fetched.map((c) => c.imageNormal)]);
+  })();
+
+  /* ------------------------------------------------------------------ */
+  /* Phase 1 — the pack: spin + tear                                     */
+  /* ------------------------------------------------------------------ */
+
+  let packEl: ReturnType<typeof buildPack> | null = null;
+  let rotY = 0;
+  let spinVel = 0;
+  const tiltX = new Spring(0, 120, 12);
+
+  void resolveKeyArt(pack).then((art) => {
+    if (disposed) return;
+    packEl = buildPack(pack, art);
+    packMount.appendChild(packEl.root);
+    packEl.root.classList.add('pack-arrive');
+    requestAnimationFrame(() => packEl?.root.classList.remove('pack-arrive'));
+  });
+
+  interface Drag {
+    id: number;
+    mode: 'spin' | 'tear';
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastT: number;
+    moved: boolean;
+  }
+  let drag: Drag | null = null;
+  let tearProgress = 0;
+  let torn = false;
+  let lastCrackle = 0;
+
+  function packRect(): DOMRect | null {
+    return packEl ? packEl.front.getBoundingClientRect() : null;
+  }
+
+  function frontFacing(): boolean {
+    const n = ((rotY % 360) + 360) % 360;
+    return n < 40 || n > 320;
+  }
+
+  function onPackDown(e: PointerEvent) {
+    if (phase !== 'pack' || torn || !packEl) return;
+    const rect = packRect();
+    let mode: Drag['mode'] = 'spin';
+    if (
+      rect &&
+      frontFacing() &&
+      e.clientY > rect.top - 20 &&
+      e.clientY < rect.top + rect.height * TEAR_ZONE &&
+      e.clientX > rect.left - 30 &&
+      e.clientX < rect.right + 30
+    ) {
+      mode = 'tear';
+      // settle the pack square while tearing
+      rotY = Math.round(rotY / 360) * 360;
+      applyPackTransform();
+    }
+    drag = { id: e.pointerId, mode, startX: e.clientX, startY: e.clientY, lastX: e.clientX, lastT: performance.now(), moved: false };
+    packStage.setPointerCapture(e.pointerId);
+    el.classList.add(mode === 'tear' ? 'is-tearing' : 'is-spinning');
+  }
+
+  function onPackMove(e: PointerEvent) {
+    if (phase !== 'pack' || !drag || e.pointerId !== drag.id || !packEl) return;
+    const dx = e.clientX - drag.lastX;
+    const now = performance.now();
+    if (Math.abs(e.clientX - drag.startX) + Math.abs(e.clientY - drag.startY) > 4) drag.moved = true;
+
+    if (drag.mode === 'spin') {
+      rotY += dx * 0.55;
+      const dt = Math.max(now - drag.lastT, 1);
+      spinVel = (dx * 0.55) / (dt / 1000);
+      tiltX.target = clamp((e.clientY - drag.startY) * -0.05, -10, 10);
+      applyPackTransform();
+    } else {
+      const rect = packRect();
+      if (!rect) return;
+      tearProgress = clamp(Math.abs(e.clientX - drag.startX) / (rect.width * 0.82), 0, 1);
+      renderTear(e.clientX < drag.startX);
+      if (now - lastCrackle > 55 && Math.abs(dx) > 1.5) {
+        lastCrackle = now;
+        tearCrackle(tearProgress);
+        const fx = rect.left + tearProgress * rect.width;
+        tearSparks(
+          drag.startX < e.clientX ? fx : rect.right - tearProgress * rect.width,
+          rect.top + rect.height * 0.16,
+          dx > 0 ? -0.4 : Math.PI + 0.4,
+        );
+      }
+      if (tearProgress >= TEAR_COMPLETE) {
+        finishTear();
+        return;
+      }
+    }
+    drag.lastX = e.clientX;
+    drag.lastT = now;
+  }
+
+  function onPackUp(e: PointerEvent) {
+    if (!drag || e.pointerId !== drag.id) return;
+    const wasTear = drag.mode === 'tear';
+    drag = null;
+    el.classList.remove('is-tearing', 'is-spinning');
+    tiltX.target = 0;
+    if (wasTear && !torn) {
+      // sprang back — didn't tear far enough
+      const settle = () => {
+        tearProgress = Math.max(0, tearProgress - 0.06);
+        renderTear(false);
+        if (tearProgress > 0 && !torn && !disposed) requestAnimationFrame(settle);
+      };
+      settle();
+    }
+  }
+
+  function renderTear(rtl: boolean) {
+    if (!packEl) return;
+    const p = tearProgress;
+    packEl.root.style.setProperty('--tear', p.toFixed(4));
+    packEl.root.style.setProperty('--tear-dir', rtl ? '-1' : '1');
+    packEl.root.classList.toggle('tearing', p > 0.01);
+    // micro-shake sells the resistance
+    const shake = p > 0.05 ? (Math.random() - 0.5) * p * 5 : 0;
+    packFloat.style.setProperty('--shake', `${shake.toFixed(2)}px`);
+  }
+
+  function applyPackTransform() {
+    if (!packEl) return;
+    packEl.root.style.transform = `rotateY(${rotY.toFixed(2)}deg) rotateX(${tiltX.value.toFixed(2)}deg)`;
+    packEl.setSpin(rotY);
+  }
+
+  // pack physics loop: inertia + snap-to-front + idle sway
+  cleanups.push(
+    onTick((dt, now) => {
+      if (phase !== 'pack' || !packEl) return;
+      tiltX.step(dt);
+      if (!drag) {
+        if (Math.abs(spinVel) > 20) {
+          rotY += spinVel * dt;
+          spinVel *= Math.exp(-2.2 * dt);
+        } else {
+          spinVel = 0;
+          // ease home to the nearest full turn, plus a gentle idle sway
+          const home = Math.round(rotY / 360) * 360;
+          rotY += (home - rotY) * Math.min(1, dt * 4);
+          if (!torn && Math.abs(home - rotY) < 1) {
+            rotY = home + Math.sin(now / 900) * 2.4;
+          }
+        }
+      }
+      applyPackTransform();
+    }),
+  );
+
+  async function finishTear() {
+    if (torn || !packEl) return;
+    torn = true;
+    drag = null;
+    el.classList.remove('is-tearing');
+    ripOpen();
+    const rect = packRect();
+    if (rect) {
+      burst(rect.left + rect.width / 2, rect.top + rect.height * 0.16, {
+        count: 50,
+        speed: 420,
+        spread: Math.PI,
+        angle: -Math.PI / 2,
+        gravity: 520,
+        size: 5,
+        life: 1.1,
+      });
+    }
+    packEl.root.classList.add('torn');
+    setPhase('burst');
+    await dataReady;
+    if (disposed) return;
+    buildStack();
+    flash.classList.add('go');
+    setTimeout(() => {
+      if (disposed) return;
+      el.classList.add('pack-away');
+      revealStack();
+    }, 420);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Phase 3 — reveal: the stack                                         */
+  /* ------------------------------------------------------------------ */
+
+  const cardEls: CardEl[] = [];
+  let currentIdx = -1; // index into cardEls of the face-up card
+  let flipped = false; // is the top card face-up yet?
+  let inputLock = 0;
+  const wobX = new Spring(0, 150, 9);
+  const wobY = new Spring(0, 150, 9);
+  let pointerNorm = { x: 0.5, y: 0.5 };
+
+  function buildStack() {
+    for (let i = 0; i < cards.length; i++) {
+      const c = buildCard(cards[i], cardBack);
+      c.root.classList.add('in-stack', 'face-down');
+      const depth = i; // 0 = top of stack
+      c.root.style.setProperty('--depth', String(depth));
+      c.root.style.setProperty('--jit', `${seededJitter(cards[i].id + i)}deg`);
+      c.root.style.zIndex = String(cards.length - i);
+      stackZone.appendChild(c.root);
+      cardEls.push(c);
+    }
+  }
+
+  function revealStack() {
+    setPhase('reveal');
+    currentIdx = 0;
+    counter.textContent = `1 / ${cards.length}`;
+    stackZone.classList.add('risen');
+    attachRevealInput();
+  }
+
+  function currentCard(): CardEl | null {
+    return cardEls[currentIdx] ?? null;
+  }
+
+  function flipCurrent() {
+    const c = currentCard();
+    if (!c) return;
+    flipped = true;
+    flipSnap();
+    c.root.classList.remove('face-down');
+    // Inline animation so it wins over (and then permanently clears) the
+    // card-rise fill — otherwise the rise would replay when a class-based
+    // animation is removed, and its forwards-fill would block the wobble
+    // transform below.
+    c.root.style.animation = 'flip-pop 0.6s ease-out';
+    setTimeout(() => {
+      if (!c.root.classList.contains('fly-off')) c.root.style.animation = 'none';
+    }, 650);
+    const rare = c.data.rarity === 'rare' || c.data.rarity === 'mythic';
+    if (rare) {
+      inputLock = performance.now() + 550;
+      rareShimmer();
+      rays.classList.add('go');
+      rays.style.setProperty('--ray-hue', c.data.rarity === 'mythic' ? '28' : '46');
+      setTimeout(() => rays.classList.remove('go'), 1600);
+      const r = c.root.getBoundingClientRect();
+      rainbowBurst(r.left + r.width / 2, r.top + r.height / 2, c.data.rarity === 'mythic' ? 110 : 60);
+    }
+  }
+
+  function advance() {
+    const c = currentCard();
+    if (!c) return;
+    flipped = false;
+    cardWhoosh();
+    c.root.style.animation = ''; // hand control back to the fly-off class
+    c.root.classList.add('fly-off');
+    c.root.style.setProperty('--fly-rot', `${(Math.random() * 24 - 12).toFixed(1)}deg`);
+    setTimeout(() => c.root.remove(), 700);
+    currentIdx++;
+    wobX.snap(0);
+    wobY.snap(0);
+    if (currentIdx >= cardEls.length) {
+      counter.textContent = '';
+      setTimeout(showSummary, 350);
+      return;
+    }
+    counter.textContent = `${currentIdx + 1} / ${cards.length}`;
+    setTimeout(() => {
+      if (!disposed && phase === 'reveal' && !flipped) flipCurrent();
+    }, 120);
+  }
+
+  function onRevealTap() {
+    if (performance.now() < inputLock) return;
+    if (!flipped) {
+      flipCurrent();
+    } else {
+      advance();
+    }
+  }
+
+  interface RevealDrag {
+    id: number;
+    startX: number;
+    startY: number;
+    startT: number;
+    moved: boolean;
+  }
+  let rDrag: RevealDrag | null = null;
+
+  function attachRevealInput() {
+    const down = (e: PointerEvent) => {
+      if (phase !== 'reveal') return;
+      rDrag = { id: e.pointerId, startX: e.clientX, startY: e.clientY, startT: performance.now(), moved: false };
+      packStage.setPointerCapture(e.pointerId);
+    };
+    const move = (e: PointerEvent) => {
+      if (phase !== 'reveal') return;
+      const c = currentCard();
+      if (!c) return;
+      const r = c.root.getBoundingClientRect();
+      pointerNorm = {
+        x: clamp((e.clientX - r.left) / r.width, 0, 1),
+        y: clamp((e.clientY - r.top) / r.height, 0, 1),
+      };
+      if (rDrag && e.pointerId === rDrag.id) {
+        const dx = e.clientX - rDrag.startX;
+        const dy = e.clientY - rDrag.startY;
+        if (Math.abs(dx) + Math.abs(dy) > TAP_MAX_DIST) rDrag.moved = true;
+        // drag = wobble the card like you're holding it
+        wobY.target = clamp(dx * 0.09, -16, 16);
+        wobX.target = clamp(-dy * 0.09, -14, 14);
+      } else if (e.pointerType === 'mouse') {
+        // hover: subtle follow
+        wobY.target = (pointerNorm.x - 0.5) * 8;
+        wobX.target = (0.5 - pointerNorm.y) * 7;
+      }
+    };
+    const up = (e: PointerEvent) => {
+      if (!rDrag || e.pointerId !== rDrag.id) return;
+      const wasTap = !rDrag.moved && performance.now() - rDrag.startT < TAP_MAX_MS;
+      rDrag = null;
+      wobX.target = 0;
+      wobY.target = 0;
+      // release wobble — the card sloshes back like cardstock
+      wobX.impulse(wobX.value * -6);
+      wobY.impulse(wobY.value * -6);
+      if (wasTap && phase === 'reveal') onRevealTap();
+    };
+    packStage.addEventListener('pointerdown', down);
+    packStage.addEventListener('pointermove', move);
+    packStage.addEventListener('pointerup', up);
+    packStage.addEventListener('pointercancel', up);
+    cleanups.push(() => {
+      packStage.removeEventListener('pointerdown', down);
+      packStage.removeEventListener('pointermove', move);
+      packStage.removeEventListener('pointerup', up);
+      packStage.removeEventListener('pointercancel', up);
+    });
+  }
+
+  // reveal tilt loop
+  cleanups.push(
+    onTick((dt, now) => {
+      if (phase !== 'reveal') return;
+      const c = currentCard();
+      if (!c || !flipped) return;
+      wobX.step(dt);
+      wobY.step(dt);
+      const idleX = rDrag ? 0 : Math.sin(now / 1300) * 1.2;
+      const idleY = rDrag ? 0 : Math.cos(now / 1700) * 1.6;
+      const rx = wobX.value + idleX;
+      const ry = wobY.value + idleY;
+      // translateZ lifts the held card off the stack so its tilted plane
+      // can't intersect (and slice through) the card behind it
+      c.root.style.transform = `translateZ(34px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+      c.setShine(rx, ry, pointerNorm.x, pointerNorm.y);
+    }),
+  );
+
+  /* ------------------------------------------------------------------ */
+  /* Phase 4 — summary fan                                               */
+  /* ------------------------------------------------------------------ */
+
+  const summaryPanel = el.querySelector<HTMLDivElement>('.summary-panel')!;
+  const summaryGrid = el.querySelector<HTMLDivElement>('.summary-grid')!;
+  const summaryRar = el.querySelector<HTMLDivElement>('.summary-rarities')!;
+  const inspectOverlay = el.querySelector<HTMLDivElement>('.inspect-overlay')!;
+  const inspectMount = el.querySelector<HTMLDivElement>('.inspect-mount')!;
+
+  function showSummary() {
+    setPhase('summary');
+    uiBlip();
+    const counts: Record<string, number> = {};
+    for (const c of cards) counts[c.rarity] = (counts[c.rarity] ?? 0) + 1;
+    summaryRar.innerHTML = (['mythic', 'rare', 'uncommon', 'common'] as const)
+      .filter((r) => counts[r])
+      .map((r) => `<span class="rar-chip rar-${r}">${counts[r]} ${r}</span>`)
+      .join('');
+    summaryGrid.innerHTML = '';
+    cards.forEach((c, i) => {
+      const cell = document.createElement('button');
+      cell.className = `summary-card rarity-${c.rarity}${c.foil ? ' is-foil' : ''}`;
+      cell.style.setProperty('--i', String(i));
+      const img = document.createElement('img');
+      img.src = c.imageNormal;
+      img.alt = c.name;
+      img.draggable = false;
+      cell.appendChild(img);
+      cell.addEventListener('click', () => inspect(c));
+      summaryGrid.appendChild(cell);
+    });
+    summaryPanel.classList.add('show');
+  }
+
+  /* Inspect: a single card with the full tilt + holo treatment. */
+  let inspectCleanup: (() => void) | null = null;
+
+  function inspect(data: CardData) {
+    uiBlip();
+    inspectMount.innerHTML = '';
+    const c = buildCard(data, cardBack);
+    c.root.classList.add('inspect-card');
+    inspectMount.appendChild(c.root);
+    inspectOverlay.classList.add('show');
+    const sx = new Spring(0, 150, 10);
+    const sy = new Spring(0, 150, 10);
+    let norm = { x: 0.5, y: 0.5 };
+    let down = false;
+    const onMove = (e: PointerEvent) => {
+      const r = c.root.getBoundingClientRect();
+      norm = { x: clamp((e.clientX - r.left) / r.width, 0, 1), y: clamp((e.clientY - r.top) / r.height, 0, 1) };
+      const scale = down || e.pointerType !== 'mouse' ? 1 : 0.55;
+      sy.target = (norm.x - 0.5) * 30 * scale;
+      sx.target = (0.5 - norm.y) * 24 * scale;
+    };
+    const onDown = (e: PointerEvent) => {
+      down = true;
+      onMove(e);
+    };
+    const onUp = () => {
+      down = false;
+      sx.target = 0;
+      sy.target = 0;
+      sx.impulse(sx.value * -5);
+      sy.impulse(sy.value * -5);
+    };
+    inspectOverlay.addEventListener('pointermove', onMove);
+    inspectOverlay.addEventListener('pointerdown', onDown);
+    inspectOverlay.addEventListener('pointerup', onUp);
+    const stopTilt = onTick((dt) => {
+      sx.step(dt);
+      sy.step(dt);
+      c.root.style.transform = `rotateX(${sx.value.toFixed(2)}deg) rotateY(${sy.value.toFixed(2)}deg)`;
+      c.setShine(sx.value, sy.value, norm.x, norm.y);
+    });
+    inspectCleanup = () => {
+      inspectOverlay.removeEventListener('pointermove', onMove);
+      inspectOverlay.removeEventListener('pointerdown', onDown);
+      inspectOverlay.removeEventListener('pointerup', onUp);
+      stopTilt();
+    };
+  }
+
+  inspectOverlay.addEventListener('click', (e) => {
+    if (e.target === inspectOverlay) {
+      inspectOverlay.classList.remove('show');
+      inspectCleanup?.();
+      inspectCleanup = null;
+    }
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Wiring                                                              */
+  /* ------------------------------------------------------------------ */
+
+  packStage.addEventListener('pointerdown', onPackDown);
+  packStage.addEventListener('pointermove', onPackMove);
+  packStage.addEventListener('pointerup', onPackUp);
+  packStage.addEventListener('pointercancel', onPackUp);
+
+  el.querySelector('.back-btn')!.addEventListener('click', opts.onExit);
+  el.querySelector('.exit-btn')!.addEventListener('click', opts.onExit);
+  el.querySelector('.again-btn')!.addEventListener('click', opts.onAgain);
+  el.querySelector('.skip-btn')!.addEventListener('click', () => {
+    if (phase !== 'reveal') return;
+    for (const c of cardEls.slice(Math.max(currentIdx, 0))) c.root.remove();
+    currentIdx = cardEls.length;
+    showSummary();
+  });
+
+  return {
+    el,
+    destroy() {
+      disposed = true;
+      inspectCleanup?.();
+      for (const fn of cleanups) fn();
+    },
+  };
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+function seededJitter(seed: string): number {
+  let s = 0;
+  for (const ch of seed) s = (s * 31 + ch.charCodeAt(0)) | 0;
+  return ((s % 100) / 100) * 3 - 1.5;
+}
