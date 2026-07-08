@@ -89,6 +89,33 @@ src/
   styles/     base/menu/pack/card/reveal CSS (all 3D + holo is pure CSS vars)
 ```
 
+## Deployment
+
+Pushes to `main` are built and deployed to **Cloudflare Pages** automatically
+via `.github/workflows/deploy.yml`. One-time setup:
+
+1. **Create the Pages project** (name must match `--project-name` in the
+   workflow, `mythicpull`):
+   ```bash
+   npx wrangler login
+   npx wrangler pages project create mythicpull --production-branch=main
+   ```
+   (Or create it in the Cloudflare dashboard: Workers & Pages → Create →
+   Pages → Direct upload.)
+2. **Create an API token**: Cloudflare dashboard → My Profile → API Tokens →
+   Create Token → "Edit Cloudflare Workers" template (or a custom token with
+   `Account.Cloudflare Pages: Edit` permission).
+3. **Add repo secrets** (Settings → Secrets and variables → Actions):
+   - `CLOUDFLARE_API_TOKEN` — the token from step 2
+   - `CLOUDFLARE_ACCOUNT_ID` — found on the right sidebar of any zone/domain
+     page in the Cloudflare dashboard
+4. **Custom domain**: once the project exists, attach your domain under the
+   Pages project's *Custom domains* tab — Cloudflare handles DNS and TLS for
+   you if the domain's nameservers already point to Cloudflare.
+
+After that, every push to `main` redeploys automatically; no server to
+manage, and Cloudflare Pages' free tier covers this kind of static app.
+
 ## Disclaimer
 
 Unofficial fan project. Magic: The Gathering is © Wizards of the Coast.
