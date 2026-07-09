@@ -6,7 +6,10 @@ modeled on the pack-opening experience in **Pokémon TCG Pocket**.
 ## The experience
 
 1. **Pick a set** — a minimal menu with a slowly turning 3D pack preview.
-   Future sets appear as locked chips; adding one is a single registry entry.
+   Ships with the five most recent Magic sets — Marvel Super Heroes (MSH),
+   Secrets of Strixhaven (SOS), Teenage Mutant Ninja Turtles (TMT), Lorwyn
+   Eclipsed (ECL), and Avatar: The Last Airbender (TLA) — plus a Foundations
+   classics sampler. Adding a set is a single registry entry.
 2. **Spin the pack** — drag anywhere to rotate the booster a full 360° with
    inertia; it settles back facing you. The foil wrapper's specular sheen
    sweeps across as it turns.
@@ -14,7 +17,7 @@ modeled on the pack-opening experience in **Pokémon TCG Pocket**.
    Sparks trail your finger, the wrapper crackles, and past the threshold the
    strip rips off, the wrapper falls away, and the cards burst out.
 4. **Reveal** — cards stack face-down (real card-back art). Tap to flip and
-   advance through all 15. Rares and mythics get ray-bursts, glitter and a
+   advance through the pack. Rares and mythics get ray-bursts, glitter and a
    shimmer arpeggio. **Drag anywhere to wobble the current card** like you're
    holding real cardstock — springs, not tweens.
 5. **Holo foils** — foil cards (the mythic demo card is always foil) carry a
@@ -59,28 +62,39 @@ every interaction works with zero network access.
 
 ## Extending it
 
-Everything a new set needs lives in `src/data/packs.ts`:
+Everything a new set needs lives in `src/data/packs.ts` — one registry entry
+with the set code, accent colors, key art, and a card list of real cards
+pinned to that set's printing:
 
 ```ts
 {
-  id: 'blb',
-  name: 'Bloomburrow',
-  setCode: 'blb',
-  accent: '#7fc24f',
-  accentSecondary: '#e8b34a',
-  keyArt: 'scryfall-art:Mabel, Heir to Cragflame:blb', // resolved via Scryfall
+  id: 'eoe',
+  name: 'Edge of Eternities',
+  setCode: 'eoe',
+  tagline: 'Play Booster · 14 cards',
+  accent: '#4fd8c2',
+  accentSecondary: '#7b4dd8',
+  keyArt: 'scryfall-art:Sothera, the Supervoid:eoe', // resolved via Scryfall
   wrapperImage: undefined, // optional: official booster scan URL
-  cards: [ { name: 'Lightning Bolt' }, /* …15 refs, `foil: true` to force holo */ ],
+  cards: [
+    { name: 'Some Common', set: 'eoe', rarity: 'common', color: 'U' },
+    // … commons → uncommons → rares, money card last:
+    { name: 'Face Mythic', set: 'eoe', rarity: 'mythic', color: 'M', foil: true },
+  ],
 }
 ```
 
-Card contents are currently a fixed 15-card sample per pack — accurate
-pack/slot/rarity generation can replace `fetchPackCards()` in
+**See [docs/adding-packs.md](docs/adding-packs.md) for the full
+walkthrough** — how to find set codes and exact card names, what the
+offline-only `rarity`/`color` hints do, wrapper art options, and how to test
+online and offline. Card contents are a fixed list per pack — randomized
+slot/rarity generation can replace `fetchPackCards()` in
 `src/data/scryfall.ts` without touching any scene code.
 
 ### Layout
 
 ```
+docs/         adding-packs.md — how to add a new set to the registry
 src/
   data/       pack registry, Scryfall client, offline mock renderer
   components/ 3D card (front/back + holo layers), 3D booster wrapper
@@ -116,5 +130,6 @@ manage, and GitHub Pages is free for public repos.
 ## Disclaimer
 
 Unofficial fan project. Magic: The Gathering is © Wizards of the Coast.
-Card imagery courtesy of Scryfall. Not affiliated with or endorsed by WotC or
-The Pokémon Company.
+Universes Beyond properties belong to their respective owners (Marvel,
+Paramount/Nickelodeon, etc.). Card imagery courtesy of Scryfall. Not
+affiliated with or endorsed by WotC or The Pokémon Company.
