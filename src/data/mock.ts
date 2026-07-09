@@ -1,4 +1,4 @@
-import type { CardData, PackDefinition, Rarity } from './types';
+import type { CardData, ColorHint, PackCardRef, PackDefinition, Rarity } from './types';
 
 /**
  * Procedural card art for offline development / demos. Draws convincing-ish
@@ -15,7 +15,7 @@ interface MockSpec {
   type: string;
 }
 
-const COLOR_THEMES: Record<string, [string, string]> = {
+const COLOR_THEMES: Record<ColorHint, [string, string]> = {
   W: ['#f5eeda', '#c8b98a'],
   U: ['#3a6ea8', '#12233f'],
   B: ['#3d3346', '#120d18'],
@@ -207,14 +207,17 @@ export function mockKeyArt(pack: PackDefinition): string {
 }
 
 export function mockCardsFor(pack: PackDefinition): CardData[] {
-  const refs = pack.cards.length
+  const refs: PackCardRef[] = pack.cards.length
     ? pack.cards
     : Object.keys(MOCK_META).map((name) => ({ name }));
   return refs.map((ref, i) => {
-    const spec = MOCK_META[ref.name] ?? {
-      color: COLOR_THEMES.A,
-      rarity: 'common' as Rarity,
-      type: 'Card',
+    // Registry rarity/color hints beat MOCK_META so any pack renders sensibly
+    // offline; unhinted cards fall back to a name-hashed color for variety.
+    const meta = MOCK_META[ref.name];
+    const spec: MockSpec = {
+      color: (ref.color && COLOR_THEMES[ref.color]) || meta?.color || hashedColor(ref.name),
+      rarity: ref.rarity ?? meta?.rarity ?? 'common',
+      type: meta?.type ?? 'Card',
     };
     const img = drawCardFront(ref.name, spec, pack.setCode);
     return {
@@ -226,9 +229,15 @@ export function mockCardsFor(pack: PackDefinition): CardData[] {
       typeLine: spec.type,
       imageLarge: img,
       imageNormal: img,
-      foil: ('foil' in ref && typeof ref.foil === 'boolean' ? ref.foil : undefined) ?? spec.rarity === 'mythic',
+      foil: ref.foil ?? spec.rarity === 'mythic',
     };
   });
+}
+
+/** Stable pseudo-random frame theme for cards with no color hint. */
+function hashedColor(name: string): [string, string] {
+  const themes = Object.values(COLOR_THEMES);
+  return themes[Math.floor(rng(name)() * themes.length)];
 }
 
 /* ---------- tiny drawing helpers ---------- */

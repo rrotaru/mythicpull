@@ -2,6 +2,12 @@
 
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'mythic';
 
+/**
+ * Coarse color identity used only by the offline mock renderer to theme
+ * procedural card frames: the five colors, M(ulticolor), A(rtifact/colorless).
+ */
+export type ColorHint = 'W' | 'U' | 'B' | 'R' | 'G' | 'M' | 'A';
+
 export interface CardData {
   /** Scryfall card id when known (mock cards use a synthetic id). */
   id: string;
@@ -41,7 +47,8 @@ export interface PackDefinition {
   wrapperImage?: string;
   /**
    * Card lookup by exact name (+ optional set) against Scryfall
-   * `/cards/collection`. 15 entries = 15 cards in the pack, opened in order.
+   * `/cards/collection`. One entry = one card in the pack, opened in order
+   * (build lists like a real booster: commons first, money card last).
    */
   cards: PackCardRef[];
   /** Future packs render in the menu but can't be opened yet. */
@@ -54,4 +61,12 @@ export interface PackCardRef {
   set?: string;
   /** Force the foil/holo treatment on this card. */
   foil?: boolean;
+  /**
+   * Rarity hint for offline mock mode (`?mock=1`). Online, Scryfall's real
+   * rarity always wins — this only themes the procedurally drawn stand-in so
+   * rarity chips, ray-bursts and foil defaults still make sense offline.
+   */
+  rarity?: Rarity;
+  /** Color hint for offline mock mode; themes the drawn card frame. */
+  color?: ColorHint;
 }

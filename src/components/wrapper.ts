@@ -90,12 +90,16 @@ function wrapperDesign(pack: PackDefinition, keyArtUrl: string, isFront: boolean
       <div class="wrap-art-fade"></div>
       <div class="wrap-brand">MYTHICPULL</div>
       <div class="wrap-title">${escapeHtml(pack.name.toUpperCase())}</div>
-      <div class="wrap-sub">${isFront ? 'PLAY BOOSTER · 15 CARDS' : 'FIFTEEN GAME CARDS'}</div>
+      <div class="wrap-sub">${isFront ? `PLAY BOOSTER · ${cardCount(pack)} CARDS` : `${cardCount(pack)} GAME CARDS`}</div>
       ${isFront ? '' : '<div class="wrap-barcode"></div>'}
     </div>
     <div class="crimp crimp-bottom"></div>
   `;
   return el;
+}
+
+function cardCount(pack: PackDefinition): number {
+  return pack.cards.length || 14;
 }
 
 function escapeHtml(s: string): string {

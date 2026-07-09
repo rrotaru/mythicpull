@@ -49,7 +49,7 @@ function imageUris(c: ScryfallCard): Record<string, string> | undefined {
   return c.image_uris ?? c.card_faces?.[0]?.image_uris;
 }
 
-/** Resolve a pack's 15 card refs into CardData via POST /cards/collection. */
+/** Resolve a pack's card refs into CardData via POST /cards/collection. */
 export async function fetchPackCards(pack: PackDefinition): Promise<CardData[]> {
   if (FORCE_MOCK) return mockCardsFor(pack);
   try {
