@@ -90,6 +90,8 @@ Per-card fields:
   `set:eoe` and sort by rarity. A misspelled name isn't fatal: the card is
   reported in the API's `not_found` list and silently skipped, so the pack
   just comes up one card short.
+- Then run `npm run validate:packs` — it catches misspelled names, bad set
+  pins, broken key art, and stale rarity hints in one pass (see step 4).
 - For double-faced cards, the **front face name** works (e.g.
   `Oko, Lorwyn Liege` resolves `Oko, Lorwyn Liege // Oko, Shadowmoor Scion`).
 - Rarity hints don't need to be perfect (they never override Scryfall), but
@@ -98,8 +100,14 @@ Per-card fields:
 ## 4. Test it
 
 ```bash
+npm run validate:packs   # checks every name/set/keyArt against live Scryfall
 npm run dev
 ```
+
+The validator resolves the whole registry through the same Scryfall endpoints
+the app uses: it fails on unresolvable names or missing imagery, and warns
+when a `rarity` hint disagrees with the card's real rarity. Run it whenever
+you touch `packs.ts`.
 
 - **Online** — open the pack; every card should resolve to real imagery. A
   console warning `[scryfall] falling back to mock cards` means the whole

@@ -45,7 +45,25 @@ with Playwright against the preinstalled Chromium
   rarity chips, `.summary-card` cells carry `rarity-*` / `is-foil` classes
   and the card name in the `<img alt>`.
 
+## Validating card data against live Scryfall
+
+`npm run validate:packs` resolves every registry card ref + keyArt through
+the real Scryfall endpoints (hard-fails on bad names/imagery, warns on stale
+rarity hints). In this sandbox, Node needs the proxy opt-in:
+
+```bash
+NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run validate:packs
+```
+
 ## Gotchas
+
+- Headless Chromium cannot reach external hosts in this sandbox — every
+  outbound TLS connection gets `ERR_CONNECTION_RESET` regardless of proxy
+  configuration (env-inherited or explicit `proxy:` launch option). So the
+  browser can only be driven against `?mock=1` and the Scryfall-fallback
+  path; validate live card data with Node fetch (above) instead.
+- Node's `fetch` ignores `HTTPS_PROXY` unless `NODE_USE_ENV_PROXY=1` is set,
+  and needs `NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt` for the MITM CA.
 
 - Pack registry lives in `src/data/packs.ts`; offline rarity/color hints on
   card refs only affect mock mode — online rarity comes from Scryfall.
