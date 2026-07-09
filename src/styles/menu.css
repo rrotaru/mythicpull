@@ -30,9 +30,10 @@
 
 .menu-sub {
   margin-top: 8px;
-  font-size: 13px;
+  font-size: clamp(10px, 2.6vw, 13px);
   letter-spacing: 0.28em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: rgba(232, 228, 240, 0.45);
 }
 
@@ -51,8 +52,9 @@
 }
 
 .menu-pack.pack3d {
-  width: min(210px, 44vw);
-  --pack-scale: 0.72;
+  /* height = width / 0.62, so the vh term keeps the preview from
+     overflowing the header/rail on short screens */
+  --pack-w: min(210px, 44vw, 21vh);
   cursor: default;
 }
 

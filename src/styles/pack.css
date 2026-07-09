@@ -64,14 +64,26 @@
   transform-style: preserve-3d;
 }
 
-/* ---------- the booster box ---------- */
+/* ---------- the booster wrapper ----------
+   Real pillow-pack geometry: front/back are horizontal slices (flat middle,
+   rotateX'd ends tapering to the thin crimped seams), sides are lens-shaped
+   planes matching that profile. Textures are canvas-baked (packTexture.ts)
+   and cropped per slice, so all lettering lives on the wrapper surface. */
 .pack3d {
+  --pack-w: min(300px, 62vw, 52vh);
   position: relative;
-  width: min(300px, 62vw, 52vh);
+  width: var(--pack-w);
   aspect-ratio: 0.62;
   transform-style: preserve-3d;
   transition: opacity 0.4s ease;
   /* NOTE: no filter here — filters flatten preserve-3d children */
+}
+
+/* invisible full-pack plane the scene uses for hit-rect math */
+.pack-bounds {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 /* soft ground shadow under the floating pack */
@@ -110,29 +122,52 @@
   opacity: 0;
 }
 
-.pack-face {
+/* one horizontal slice of the front/back surface */
+.pslice {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform-origin: 50% 0;
+}
+
+/* children flatten into the slice's plane but keep their own backfaces —
+   hide them all so front layers vanish when the pack shows its back */
+.pslice,
+.pslice * {
+  backface-visibility: hidden;
+}
+
+.pslice > canvas,
+.peel canvas {
   position: absolute;
   inset: 0;
-  backface-visibility: hidden;
-  border-radius: 10px;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.pack-face.front {
-  transform: translateZ(9px);
+/* the back half of the pack lives in a rotated sub-scene */
+.pack-flip {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  transform-style: preserve-3d;
 }
 
-.pack-face.back {
-  transform: rotateY(180deg) translateZ(9px);
+/* jagged remnant edge on the front panel, hidden under the cap sliver until
+   the strip rips away */
+.front-body {
+  clip-path: polygon(
+    0% 3.1%, 4% 1.5%, 9% 3.3%, 15% 1.6%, 22% 3.2%, 28% 1.4%, 35% 3.3%, 42% 1.7%,
+    49% 3.2%, 56% 1.5%, 63% 3.3%, 70% 1.6%, 77% 3.2%, 84% 1.4%, 90% 3.3%, 96% 1.6%,
+    100% 2.9%, 100% 100%, 0% 100%
+  );
 }
 
-.pack-face.side {
-  width: 18px;
-  left: 0;
-  top: 1px;
-  bottom: 1px;
-  inset-inline-end: auto;
-  border-radius: 4px;
+/* sides: lens-shaped planes tracing the pillow taper profile */
+.pack-side {
+  position: absolute;
+  width: calc(var(--pack-w) * 0.09);
   background: linear-gradient(
     to bottom,
     color-mix(in srgb, var(--accent) 24%, #120c22),
@@ -140,138 +175,52 @@
     #0c081a 70%,
     color-mix(in srgb, var(--accent) 24%, #120c22)
   );
-  transform: translateX(-50%) rotateY(90deg);
   backface-visibility: visible;
 }
 
-.pack-face.side-right {
+.pack-side.side-left {
+  left: 0;
+  transform: translateX(-50%) rotateY(90deg);
+}
+
+.pack-side.side-right {
   left: auto;
   right: 0;
   transform: translateX(50%) rotateY(90deg);
 }
 
-/* ---------- wrapper design ---------- */
-.wrapper-design {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  background:
-    linear-gradient(115deg, rgba(255, 255, 255, 0.1) 0%, transparent 30%),
-    linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--accent2) 45%, #16102c),
-      #171030 34%,
-      color-mix(in srgb, var(--accent) 26%, #120d24) 68%,
-      #0d0920
-    );
-}
-
-.wrapper-flat-art {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.crimp {
-  position: relative;
-  height: 6.5%;
-  flex: none;
-  background:
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.16) 0 2px, rgba(0, 0, 0, 0.28) 2px 5px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--accent) 40%, #241a3e), #16102c);
-}
-
-.crimp-top {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+.pack-side.side-upper {
+  top: 0;
+  height: 18%;
   clip-path: polygon(
-    0 0, 100% 0, 100% 100%, 96% 88%, 92% 100%, 88% 88%, 84% 100%, 80% 88%, 76% 100%, 72% 88%,
-    68% 100%, 64% 88%, 60% 100%, 56% 88%, 52% 100%, 48% 88%, 44% 100%, 40% 88%, 36% 100%,
-    32% 88%, 28% 100%, 24% 88%, 20% 100%, 16% 88%, 12% 100%, 8% 88%, 4% 100%, 0 88%
+    46.1% 0%, 53.9% 0%, 76.7% 30.6%, 92.2% 58.3%, 100% 88.9%, 100% 100%,
+    0% 100%, 0% 88.9%, 7.8% 58.3%, 23.3% 30.6%
   );
 }
 
-.crimp-bottom {
-  border-top: 1px solid rgba(0, 0, 0, 0.5);
+.pack-side.side-lower {
+  top: 18%;
+  height: 82%;
+  clip-path: polygon(
+    0% 0%, 100% 0%, 100% 80.5%, 92.2% 87.2%, 76.7% 93.3%, 53.9% 100%,
+    46.1% 100%, 23.3% 93.3%, 7.8% 87.2%, 0% 80.5%
+  );
 }
 
-.wrap-body {
-  position: relative;
-  flex: 1;
-  overflow: hidden;
-}
-
-.wrap-art {
+/* dark interior glimpsed under the lifting strip and through the torn mouth —
+   spans just the sliver between the front's jagged remnant and the back's cut */
+.pack-liner {
   position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center 30%;
-  filter: saturate(1.15) contrast(1.05);
+  left: 1.5%;
+  right: 1.5%;
+  top: 16%;
+  height: 3%;
+  transform: translateZ(calc(var(--pack-w) * 0.045 - 3px));
+  background: linear-gradient(to bottom, #060310, #0d0819);
+  backface-visibility: hidden;
 }
 
-.wrap-art-fade {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to bottom, rgba(13, 9, 32, 0.85), transparent 26%, transparent 55%, rgba(13, 9, 32, 0.92) 86%),
-    radial-gradient(120% 60% at 50% 40%, transparent 55%, rgba(13, 9, 32, 0.55));
-}
-
-.wrap-brand {
-  position: absolute;
-  top: 4.5%;
-  width: 100%;
-  text-align: center;
-  font-size: calc(10px * var(--pack-scale, 1));
-  letter-spacing: 0.42em;
-  color: rgba(255, 240, 210, 0.85);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
-}
-
-.wrap-title {
-  position: absolute;
-  bottom: 14%;
-  width: 100%;
-  text-align: center;
-  font-family: Georgia, serif;
-  font-weight: 700;
-  font-size: calc(26px * var(--pack-scale, 1));
-  letter-spacing: 0.14em;
-  background: linear-gradient(175deg, #fff6d8 30%, var(--accent) 70%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9));
-  padding: 0 6px;
-}
-
-.wrap-sub {
-  position: absolute;
-  bottom: 9%;
-  width: 100%;
-  text-align: center;
-  font-size: calc(9px * var(--pack-scale, 1));
-  letter-spacing: 0.3em;
-  color: rgba(232, 228, 240, 0.7);
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
-}
-
-.wrap-barcode {
-  position: absolute;
-  bottom: 2.5%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 42%;
-  height: 5%;
-  background: repeating-linear-gradient(90deg, #ddd 0 2px, #111 2px 4px, #ddd 4px 5px, #111 5px 8px);
-  border: 3px solid #ddd;
-  border-radius: 2px;
-  opacity: 0.85;
-}
-
-/* foil sheen that tracks the spin */
+/* foil sheen that tracks the spin (front body panel only) */
 .pack-sheen {
   position: absolute;
   inset: 0;
@@ -299,55 +248,96 @@
   opacity: 0.9;
 }
 
-/* ---------- tear strip ---------- */
-.tear-strip {
+/* ---------- the tear cap ----------
+   Everything above the perforation — front + back taper slices and the side
+   tips — grouped so the whole top rips off as one 3D piece. */
+.pack-cap {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 18%;
-  overflow: hidden;
-  z-index: 6;
-  transform-origin: 50% 100%;
-  transform: translateY(calc(var(--tear, 0) * -7px)) rotate(calc(var(--tear, 0) * var(--tear-dir, 1) * -2.5deg));
-  transition: transform 0.05s linear;
+  inset: 0;
+  transform-style: preserve-3d;
+  pointer-events: none;
 }
 
-.tear-strip .wrapper-design {
-  height: 555.6%;
+/* Each front cap slice carries two copies of its texture: the part still
+   attached (keep) and the part already torn (lift). The frontier between
+   them follows --tear; the lifted part rises off the perforation instead of
+   the old whole-strip stretch. */
+.peel {
+  position: absolute;
+  inset: 0;
+  transition:
+    clip-path 60ms linear,
+    transform 60ms linear;
 }
 
-.pack3d.tearing .tear-strip {
-  filter: brightness(1.12);
+.peel-jag {
+  position: absolute;
+  inset: 0;
 }
 
-/* the strip rips off */
-.pack3d.torn .tear-strip {
-  animation: strip-off 0.75s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
+.peel-lift {
+  clip-path: inset(0 100% 0 0);
 }
 
-@keyframes strip-off {
-  20% {
-    transform: translate3d(8px, -22px, 30px) rotate(-6deg) rotateX(24deg);
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(90px, -46vh, 120px) rotate(-28deg) rotateX(80deg);
-    opacity: 0;
-  }
+.pack3d.tearing .peel-keep {
+  clip-path: inset(0 0 0 calc(var(--tear, 0) * 100%));
 }
 
-/* jagged edge left behind on the front face */
-.pack3d.torn .pack-face.front > .wrapper-design {
+.pack3d.tearing .peel-lift {
+  clip-path: inset(0 calc((1 - var(--tear, 0)) * 100%) 0 0);
+  transform: translateY(calc(-2px - var(--tear, 0) * 8px));
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.6));
+}
+
+.pack3d.tearing.tear-rtl .peel-keep {
+  clip-path: inset(0 calc(var(--tear, 0) * 100%) 0 0);
+}
+
+.pack3d.tearing.tear-rtl .peel-lift {
+  clip-path: inset(0 0 0 calc((1 - var(--tear, 0)) * 100%));
+}
+
+/* ragged perforation along the lifted sliver's bottom edge */
+.cap-sliver .peel-lift .peel-jag {
   clip-path: polygon(
-    0% 17.6%, 5% 16.6%, 11% 18.2%, 17% 16.9%, 24% 18.4%, 31% 16.8%, 38% 18.1%, 45% 17%,
-    52% 18.3%, 59% 16.9%, 66% 18.2%, 73% 17.1%, 80% 18.4%, 87% 16.9%, 94% 18.1%, 100% 17.3%,
-    100% 100%, 0% 100%
+    0% 0%, 100% 0%, 100% 80%, 94% 92%, 88% 78%, 82% 90%, 76% 76%, 70% 92%,
+    64% 78%, 58% 90%, 52% 78%, 46% 92%, 40% 78%, 34% 90%, 28% 76%, 22% 92%,
+    16% 78%, 10% 90%, 4% 78%, 0% 88%
   );
 }
 
-.pack3d.torn .pack-face.back > .wrapper-design {
-  clip-path: polygon(0% 17%, 100% 17.6%, 100% 100%, 0% 100%);
+/* the whole cap rips off */
+.pack3d.torn .pack-cap {
+  transform-origin: 50% 10%;
+  animation: cap-off 0.8s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
+}
+
+.pack3d.torn .peel-keep,
+.pack3d.torn .peel-lift {
+  clip-path: none;
+  transform: none;
+  filter: none;
+  transition: none;
+}
+
+.pack3d.torn .tear-guide {
+  display: none;
+}
+
+/* straight cut left behind on the back panel */
+.pack3d.torn .back-body {
+  clip-path: inset(2.9% 0 0 0);
+}
+
+@keyframes cap-off {
+  25% {
+    transform: translate3d(12px, -28px, 40px) rotateZ(-5deg) rotateX(32deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(90px, -46vh, 150px) rotateZ(-26deg) rotateX(100deg);
+    opacity: 0;
+  }
 }
 
 /* ---------- tear guide ---------- */
@@ -356,8 +346,13 @@
   top: calc(18% - 3px);
   left: 0;
   right: 0;
-  z-index: 7;
+  transform: translateZ(calc(var(--pack-w) * 0.045 + 1.5px));
+  backface-visibility: hidden;
   pointer-events: none;
+}
+
+.tear-guide * {
+  backface-visibility: hidden;
 }
 
 .tear-dashes {
@@ -403,7 +398,7 @@
 .tear-frontier {
   position: absolute;
   top: -7px;
-  left: calc(3% + var(--tear, 0) * 94%);
+  left: calc(2% + var(--tear, 0) * 96%);
   width: 14px;
   height: 14px;
   margin-left: -7px;
@@ -415,6 +410,10 @@
 
 .pack3d.tearing .tear-frontier {
   opacity: 1;
+}
+
+.pack3d.tear-rtl .tear-frontier {
+  left: calc(98% - var(--tear, 0) * 96%);
 }
 
 .pack3d.tearing .tear-chevron {
