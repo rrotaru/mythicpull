@@ -183,8 +183,25 @@ export function openingScene(opts: {
       // drag tears slowly. Perforations don't heal, so progress only grows.
       if (!drag.tearDir) {
         if (Math.abs(e.clientX - drag.startX) < 6) return;
-        drag.tearDir = e.clientX > drag.startX ? 1 : -1;
-        tearRtl = drag.tearDir === -1;
+        const dir: 1 | -1 = e.clientX > drag.startX ? 1 : -1;
+        // A tear must sweep inward from where it was grabbed. If the grab
+        // point sits in the far half for this direction (e.g. grabbing the
+        // left edge and tugging further left), `along` would start near 1
+        // and rip the pack open instantly — treat that gesture as a spin.
+        const grabAlong =
+          dir === 1
+            ? (drag.startX - rect.left) / rect.width
+            : (rect.right - drag.startX) / rect.width;
+        if (grabAlong > 0.5) {
+          drag.mode = 'spin';
+          el.classList.remove('is-tearing');
+          el.classList.add('is-spinning');
+          drag.lastX = e.clientX;
+          drag.lastT = now;
+          return;
+        }
+        drag.tearDir = dir;
+        tearRtl = dir === -1;
       }
       const along =
         drag.tearDir === 1
