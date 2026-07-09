@@ -31,12 +31,17 @@ with Playwright against the preinstalled Chromium
 ## Driving the flows
 
 - **Menu**: wait for `.set-chip`; chips carry `.chip-code`/`.chip-name`.
-  Selecting a chip remounts the 3D preview; `.wrap-sub` on the wrapper shows
-  the card-count label. `.open-btn` enters the opening scene.
+  Selecting a chip remounts the 3D preview (`.menu-pack.pack3d`); all wrapper
+  text is canvas-baked, so assert visually via screenshot, not DOM text.
+  `.open-btn` enters the opening scene.
 - **Tear open the pack**: wait for `.opening-scene.phase-pack` and
-  `.pack-face.front`, let the arrive animation finish (~800ms), then drag
-  with `page.mouse` across the top ~10% of the pack front (the tear zone is
-  the top 20%; tear completes at 88% of width — sweep 95% in ~30 steps).
+  `.pack3d .front-body canvas`, let the arrive animation finish (~800ms).
+  Measure the pack rect from `.pack3d .pack-bounds`. Drag with `page.mouse`
+  across the top ~10% of the pack (the tear zone is the top 20%). The tear
+  frontier tracks the pointer's x position across the pack, direction-locked
+  from the first horizontal move, and completes at 88% of width — so start
+  the drag near one edge (~3%) and sweep to ~97% in ~30 steps. The pack must
+  be front-facing and settled: don't tear right after a spin fling.
 - **Reveal**: `.opening-scene.phase-reveal`; `.open-counter` shows `n / N`.
   Click `.pack-stage` to flip, click again to advance (rares lock input
   ~550ms — space clicks ≥650ms apart). `.skip-btn` ("Reveal all") jumps
@@ -67,5 +72,6 @@ NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run valida
 
 - Pack registry lives in `src/data/packs.ts`; offline rarity/color hints on
   card refs only affect mock mode — online rarity comes from Scryfall.
-- Both wrapper faces have `.wrap-sub`; the first match in the DOM is the
-  back face (`N GAME CARDS`), the front reads `PLAY BOOSTER · N CARDS`.
+- Wrapper text (brand/title/subtitle/barcode) is baked into canvas textures
+  by `src/components/packTexture.ts` and cropped per 3D slice in
+  `src/components/wrapper.ts` — there are no `.wrap-*` text nodes to query.

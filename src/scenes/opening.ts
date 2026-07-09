@@ -122,9 +122,12 @@ export function openingScene(opts: {
     lastX: number;
     lastT: number;
     moved: boolean;
+    /** Tear direction, locked from the first horizontal movement. */
+    tearDir?: 1 | -1;
   }
   let drag: Drag | null = null;
   let tearProgress = 0;
+  let tearRtl = false;
   let torn = false;
   let lastCrackle = 0;
 
@@ -174,17 +177,50 @@ export function openingScene(opts: {
     } else {
       const rect = packRect();
       if (!rect) return;
-      tearProgress = clamp(Math.abs(e.clientX - drag.startX) / (rect.width * 0.82), 0, 1);
-      renderTear(e.clientX < drag.startX);
-      if (now - lastCrackle > 55 && Math.abs(dx) > 1.5) {
-        lastCrackle = now;
-        tearCrackle(tearProgress);
-        const fx = rect.left + tearProgress * rect.width;
-        tearSparks(
-          drag.startX < e.clientX ? fx : rect.right - tearProgress * rect.width,
-          rect.top + rect.height * 0.16,
-          dx > 0 ? -0.4 : Math.PI + 0.4,
-        );
+      // Lock the tear direction from the first real horizontal movement,
+      // then let the frontier track the pointer directly: the wrapper opens
+      // exactly as far as the finger has travelled — no stretch, and a slow
+      // drag tears slowly. Perforations don't heal, so progress only grows.
+      if (!drag.tearDir) {
+        if (Math.abs(e.clientX - drag.startX) < 6) return;
+        const dir: 1 | -1 = e.clientX > drag.startX ? 1 : -1;
+        // A tear must sweep inward from where it was grabbed. If the grab
+        // point sits in the far half for this direction (e.g. grabbing the
+        // left edge and tugging further left), `along` would start near 1
+        // and rip the pack open instantly — treat that gesture as a spin.
+        const grabAlong =
+          dir === 1
+            ? (drag.startX - rect.left) / rect.width
+            : (rect.right - drag.startX) / rect.width;
+        if (grabAlong > 0.5) {
+          drag.mode = 'spin';
+          el.classList.remove('is-tearing');
+          el.classList.add('is-spinning');
+          drag.lastX = e.clientX;
+          drag.lastT = now;
+          return;
+        }
+        drag.tearDir = dir;
+        tearRtl = dir === -1;
+      }
+      const along =
+        drag.tearDir === 1
+          ? (e.clientX - rect.left) / rect.width
+          : (rect.right - e.clientX) / rect.width;
+      const t = clamp(along, 0, 1);
+      if (t > tearProgress) {
+        tearProgress = t;
+        renderTear(tearRtl);
+        if (now - lastCrackle > 55 && Math.abs(dx) > 1.5) {
+          lastCrackle = now;
+          tearCrackle(tearProgress);
+          const frontierX = drag.tearDir === 1 ? tearProgress : 1 - tearProgress;
+          tearSparks(
+            rect.left + frontierX * rect.width,
+            rect.top + rect.height * 0.17,
+            drag.tearDir === 1 ? -0.4 : Math.PI + 0.4,
+          );
+        }
       }
       if (tearProgress >= TEAR_COMPLETE) {
         finishTear();
@@ -205,7 +241,7 @@ export function openingScene(opts: {
       // sprang back — didn't tear far enough
       const settle = () => {
         tearProgress = Math.max(0, tearProgress - 0.06);
-        renderTear(false);
+        renderTear(tearRtl);
         if (tearProgress > 0 && !torn && !disposed) requestAnimationFrame(settle);
       };
       settle();
@@ -216,7 +252,7 @@ export function openingScene(opts: {
     if (!packEl) return;
     const p = tearProgress;
     packEl.root.style.setProperty('--tear', p.toFixed(4));
-    packEl.root.style.setProperty('--tear-dir', rtl ? '-1' : '1');
+    packEl.root.classList.toggle('tear-rtl', rtl);
     packEl.root.classList.toggle('tearing', p > 0.01);
     // micro-shake sells the resistance
     const shake = p > 0.05 ? (Math.random() - 0.5) * p * 5 : 0;
@@ -257,6 +293,7 @@ export function openingScene(opts: {
     torn = true;
     drag = null;
     el.classList.remove('is-tearing');
+    packEl.root.classList.remove('tearing');
     ripOpen();
     const rect = packRect();
     if (rect) {
