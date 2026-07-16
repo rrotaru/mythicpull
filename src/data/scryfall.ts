@@ -1,5 +1,6 @@
-import type { CardData, PackDefinition, Rarity } from './types';
+import type { CardData, PackDefinition } from './types';
 import { mockCardsFor, mockCardBack, mockKeyArt } from './mock';
+import { fetchSetPool, generateBooster, imageUris, type ScryfallCard } from './booster';
 
 /**
  * Thin Scryfall client.
@@ -34,24 +35,38 @@ export async function getCardBack(): Promise<string> {
   return cardBackResolved;
 }
 
-interface ScryfallCard {
-  id: string;
-  name: string;
-  set: string;
-  set_name: string;
-  rarity: Rarity;
-  type_line?: string;
-  image_uris?: Record<string, string>;
-  card_faces?: { image_uris?: Record<string, string> }[];
+function toCardData(hit: ScryfallCard, foil: boolean, uris: Record<string, string>): CardData {
+  return {
+    id: hit.id,
+    name: hit.name,
+    setCode: hit.set,
+    setName: hit.set_name,
+    rarity: hit.rarity,
+    typeLine: hit.type_line ?? '',
+    imageLarge: uris.large,
+    imageNormal: uris.normal ?? uris.large,
+    foil,
+  };
 }
 
-function imageUris(c: ScryfallCard): Record<string, string> | undefined {
-  return c.image_uris ?? c.card_faces?.[0]?.image_uris;
-}
-
-/** Resolve a pack's card refs into CardData via POST /cards/collection. */
+/**
+ * Cards for one pack opening. Online, every open rolls a fresh rarity-slotted
+ * booster from the set's full pool (see booster.ts); the curated list in
+ * packs.ts is only the fallback when that fails.
+ */
 export async function fetchPackCards(pack: PackDefinition): Promise<CardData[]> {
   if (FORCE_MOCK) return mockCardsFor(pack);
+  try {
+    const pool = await fetchSetPool(pack.setCode);
+    return generateBooster(pool).map(({ card, foil }) => toCardData(card, foil, imageUris(card)!));
+  } catch (err) {
+    console.warn('[scryfall] booster generation failed, using curated list:', err);
+    return fetchCuratedCards(pack);
+  }
+}
+
+/** Resolve the pack's curated card refs into CardData via POST /cards/collection. */
+async function fetchCuratedCards(pack: PackDefinition): Promise<CardData[]> {
   try {
     const res = await fetch(`${API}/cards/collection`, {
       method: 'POST',
@@ -71,17 +86,7 @@ export async function fetchPackCards(pack: PackDefinition): Promise<CardData[]> 
       if (!hit) continue;
       const uris = imageUris(hit);
       if (!uris?.large) continue;
-      cards.push({
-        id: hit.id,
-        name: hit.name,
-        setCode: hit.set,
-        setName: hit.set_name,
-        rarity: hit.rarity,
-        typeLine: hit.type_line ?? '',
-        imageLarge: uris.large,
-        imageNormal: uris.normal ?? uris.large,
-        foil: ref.foil ?? hit.rarity === 'mythic',
-      });
+      cards.push(toCardData(hit, ref.foil ?? hit.rarity === 'mythic', uris));
     }
     if (cards.length === 0) throw new Error('no cards resolved');
     return cards;

@@ -55,8 +55,12 @@ Two options, in increasing order of effort:
 
 ## 3. The card list
 
-Each entry in `cards` is one card in the pack, revealed **in array order** —
-build the list like cracking a real Play Booster so the drama ramps up:
+Online, pack contents are **randomized per opening**: each open draws a fresh
+rarity-slotted booster from the set's full card pool, fetched via `setCode`
+(see [`src/data/booster.ts`](../src/data/booster.ts)). The `cards` list is the
+curated **fallback** — it's what opens offline (`?mock=1`) and when Scryfall
+is unreachable, and it's revealed **in array order** — so still build it like
+cracking a real Play Booster so the drama ramps up:
 
 ```
 commons → uncommons → rare slot(s) → marquee mythic (foil, last)
@@ -109,9 +113,13 @@ the app uses: it fails on unresolvable names or missing imagery, and warns
 when a `rarity` hint disagrees with the card's real rarity. Run it whenever
 you touch `packs.ts`.
 
-- **Online** — open the pack; every card should resolve to real imagery. A
-  console warning `[scryfall] falling back to mock cards` means the whole
-  fetch failed; individually skipped cards mean a name/set typo.
+- **Online** — open the pack twice; you should see real imagery and
+  *different* cards each time, commons first and a foil finale last. A
+  console warning `[scryfall] booster generation failed` means the set pool
+  couldn't be fetched (bad `setCode`, or a set too small to fill 14 slots)
+  and the curated list was used; `[scryfall] falling back to mock cards`
+  means that fetch failed too. Individually skipped cards in the curated
+  path mean a name/set typo.
 - **Offline** — append `?mock=1`. The pack should render procedural cards
   with your `rarity`/`color` hints reflected in the frames, rarity chips,
   and which cards get the holo treatment.
@@ -119,11 +127,13 @@ you touch `packs.ts`.
 `npm run build` typechecks the registry — wrong rarity strings or color
 letters fail compilation.
 
-## 5. Beyond fixed lists: randomized pack contents
+## 5. How randomized contents work
 
-Card lists are currently fixed per pack (same 14 cards each opening). To
-generate random contents with real slot odds, replace `fetchPackCards()` in
-[`src/data/scryfall.ts`](../src/data/scryfall.ts): Scryfall's
-`/cards/search?q=set:eoe+rarity:c` (etc.) can fetch the full rarity pools,
-from which you draw per-slot. The scenes only consume the returned
-`CardData[]`, so nothing else needs to change.
+[`src/data/booster.ts`](../src/data/booster.ts) fetches the set's full card
+pool once per session (`/cards/search?q=e:<setCode> is:booster -t:basic`,
+paginated, cached per set) and rolls a fresh 14-card booster on every open
+with Play-Booster-style slots: 7 commons, 3 uncommons, 2 any-rarity
+wildcards, 1 rare/mythic (mythic 1-in-7), and a foil finale weighted toward
+rare/mythic — no duplicates, revealed commons → mythics with the foil last.
+Tweak the odds via the `SLOTS` constant. The scenes only consume the
+returned `CardData[]`, so slot changes never touch scene code.

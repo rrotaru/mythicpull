@@ -4,12 +4,15 @@ import type { PackDefinition } from './types';
  * Pack registry. Adding a pack = adding an entry here — see
  * docs/adding-packs.md for the full walkthrough.
  *
- * The five newest packs mirror the five most recent Magic sets. Each card
- * list is real cards from that set, pinned to the set's printing so Scryfall
- * returns the correct image and rarity, and ordered like cracking a real
- * Play Booster: commons up front, uncommons next, then the rare slots, with
- * the marquee mythic (always foil) last. `rarity`/`color` are offline hints
- * only — online, Scryfall's actual rarity always wins (see scryfall.ts).
+ * The five newest packs mirror the five most recent Magic sets. Online, a
+ * pack's contents are NOT this list — every open rolls a fresh rarity-slotted
+ * booster from the set's full card pool (see booster.ts), keyed by `setCode`.
+ * The `cards` list is the curated fallback used offline (`?mock=1`) and when
+ * Scryfall is unreachable: real cards from the set, pinned to the set's
+ * printing, ordered like cracking a real Play Booster — commons up front,
+ * uncommons next, then the rare slots, with the marquee mythic (always foil)
+ * last. `rarity`/`color` are offline hints only — online, Scryfall's actual
+ * rarity always wins (see scryfall.ts).
  *
  * Wrapper art: packs render a procedural 3D foil wrapper built around
  * `keyArt` (a Scryfall art_crop). For pixel-accurate official packaging, set
@@ -147,7 +150,7 @@ export const PACKS: PackDefinition[] = [
     id: 'fdn',
     name: 'Foundations',
     setCode: 'fdn',
-    tagline: 'Classics sampler · 15 cards',
+    tagline: 'Classics sampler · 14 cards',
     accent: '#d4a843',
     accentSecondary: '#7b4dd8',
     // Shivan Dragon (FDN) art crop — resolved at runtime; see scryfall.ts.
