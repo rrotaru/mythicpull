@@ -46,9 +46,11 @@ export interface PackDefinition {
    */
   wrapperImage?: string;
   /**
-   * Card lookup by exact name (+ optional set) against Scryfall
-   * `/cards/collection`. One entry = one card in the pack, opened in order
-   * (build lists like a real booster: commons first, money card last).
+   * Curated fallback contents, resolved by exact name (+ optional set)
+   * against Scryfall `/cards/collection`. Online, opens are randomized from
+   * the set's full pool instead (see booster.ts); this list is what you get
+   * offline (`?mock=1`) or when Scryfall is unreachable. Build it like a real
+   * booster: commons first, money card last.
    */
   cards: PackCardRef[];
   /** Future packs render in the menu but can't be opened yet. */

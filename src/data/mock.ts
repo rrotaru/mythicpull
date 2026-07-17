@@ -1,4 +1,5 @@
 import type { CardData, ColorHint, PackCardRef, PackDefinition, Rarity } from './types';
+import { shuffle } from './booster';
 
 /**
  * Procedural card art for offline development / demos. Draws convincing-ish
@@ -210,7 +211,10 @@ export function mockCardsFor(pack: PackDefinition): CardData[] {
   const refs: PackCardRef[] = pack.cards.length
     ? pack.cards
     : Object.keys(MOCK_META).map((name) => ({ name }));
-  return refs.map((ref, i) => {
+  // Offline there's no set pool to draw from, so contents can't vary — but
+  // the reveal order still should: shuffle within each rarity group, keeping
+  // the rarity ramp intact and the marked foil(s) last.
+  return shuffleWithinRarity(refs).map((ref, i) => {
     // Registry rarity/color hints beat MOCK_META so any pack renders sensibly
     // offline; unhinted cards fall back to a name-hashed color for variety.
     const meta = MOCK_META[ref.name];
@@ -232,6 +236,21 @@ export function mockCardsFor(pack: PackDefinition): CardData[] {
       foil: ref.foil ?? spec.rarity === 'mythic',
     };
   });
+}
+
+const RARITY_ORDER: Rarity[] = ['common', 'uncommon', 'rare', 'mythic'];
+
+function shuffleWithinRarity(refs: PackCardRef[]): PackCardRef[] {
+  const groups: Record<Rarity, PackCardRef[]> = { common: [], uncommon: [], rare: [], mythic: [] };
+  const foils: PackCardRef[] = [];
+  for (const ref of refs) {
+    if (ref.foil) foils.push(ref);
+    else groups[ref.rarity ?? MOCK_META[ref.name]?.rarity ?? 'common'].push(ref);
+  }
+  const out: PackCardRef[] = [];
+  for (const r of RARITY_ORDER) out.push(...shuffle(groups[r]));
+  out.push(...shuffle(foils));
+  return out;
 }
 
 /** Stable pseudo-random frame theme for cards with no color hint. */
