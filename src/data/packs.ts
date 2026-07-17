@@ -164,7 +164,6 @@ export const PACKS: PackDefinition[] = [
       { name: 'Shock' },
       { name: 'Divination' },
       { name: 'Pacifism' },
-      { name: 'Hero of Bladehold' },
       { name: 'Serra Angel' },
       { name: 'Counterspell' },
       { name: 'Lightning Bolt' },
